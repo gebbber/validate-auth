@@ -38,15 +38,15 @@ module.exports = (config={}) => {
             
             if (!req.body) return next();
             
-            if (!allowNeither && !req.body[passwordLocation] && !req.body[passphraseLocation]) return res.status(errorStatus).send(haveNeitherMessage);
-            if (req.body[passwordLocation] && req.body[passphraseLocation]) return res.status(errorStatus).send(haveBothMessage);
+            if (!allowNeither && !req.body[passwordLocation] && !req.body[passphraseLocation]) return reply(res, errorStatus, haveNeitherMessage);
+            if (req.body[passwordLocation] && req.body[passphraseLocation]) return reply(res, errorStatus, haveBothMessage);
             
             if (!req.body[passphraseLocation]) return next();
             
             const candidate = normalizePassphrase(passphrase);
     
             if (req._newPasswordCalled && candidate.split(' ').length < minWords)
-                res.status(errorStatus).send(shortPassphraseMessage);
+                reply(res, errorStatus, shortPassphraseMessage);
             
             req.body[passwordLocation] = candidate;
             
@@ -70,7 +70,7 @@ module.exports = (config={}) => {
             
             const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
             
-            if (!re.test(email)) return res.status(errorStatus).send(invalidEmailMessage);
+            if (!re.test(email)) return reply(res, errorStatus, invalidEmailMessage);
             
             next();
          
@@ -94,7 +94,7 @@ module.exports = (config={}) => {
         
             const candidate = req.body[passwordLocation];
         
-            if (!validPassword(candidate)) return res.status(errorStatus).send(invalidPasswordMessage);
+            if (!validPassword(candidate)) return reply(res, errorStatus, invalidPasswordMessage);
         
             next();
             
@@ -167,4 +167,10 @@ function normalizePassphrase(input) {
 
     return nWords.join(' ');
 
+}
+
+// send a string or JSON payload:
+function reply(res, status, payload) {
+    if (typeof payload === 'object') res.status(status).json(payload);
+    else res.status(status).send(payload);
 }
