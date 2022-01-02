@@ -4,7 +4,7 @@
 
 `require` the package and optionally pass it a `config` object, or rely on sensible defaults.
 
-When executed, the package returns configured Express middleware.
+When executed, the package returns semi-configured Express middleware. (Most of the functions returned need to be executed to produce the middleware.)
 
 
 ```javascript
