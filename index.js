@@ -17,19 +17,40 @@ module.exports = (config={}) => {
 
     return { 
         // middleware:
+        allowNewPassphrase,
+        allowExistingPassphrase,
         sendPasswordRequirements: (req, res) =>{res.json(pReqs);},
-        allowPassphrases,
         validateEmail,
-        validateNewPassword
-
+        validateNewPassword,
+        validPassword,
+        __normalizePassphrase: normalizePassphrase,
+        __reply: reply,
+        __pwdReqs: pwdReqs
     }
 
-    function allowPassphrases(config={}) {
+    function allowExistingPassphrase(config) {return allowNewPassphrase(config, true);}
+        
+    function allowNewPassphrase(config={}, skipLengthCheck=false) {
 
-        const allowNeither = config.allowNeither || false;
         const haveNeitherMessage = config.haveNeitherMessage || `Need req.body.${passwordLocation} or req.body.${passphraseLocation}`;
-        const haveBothMessage = config.haveBothMessage || `Need only one of req.body.${passwordLocation} or req.body.${passphraseLocation}`;
-        const shortPassphraseMessage = (config.shortPassphraseMessage && typeof config.shortPassphraseMessage === 'string' && config.shortPassphraseMessage.replace('${minWords}',minWords)) || `Normalized passphrase needs ${minWords} unique words > 1 character`;
+        const haveBothMessage = config.haveBothMessage || `Can't have both req.body.${passwordLocation} and req.body.${passphraseLocation}`;
+        
+        const shortPassphraseMessage = (()=>{
+
+            if (config.shortPassphraseMessage && typeof config.shortPassphraseMessage === 'string')
+            return config.shortPassphraseMessage.replace('${minWords}',minWords.toString());
+            
+            if (config.shortPassphraseMessage && typeof config.shortPassphraseMessage === 'object') {
+                const newObj = {...config.shortPassphraseMessage};
+                for (key in newObj) {
+                    newObj[key] = newObj[key].replace('${minWords}',minWords.toString())
+                }
+                return newObj;
+            }
+
+            return `Normalized passphrase needs ${minWords} unique words > 1 character`;
+        })();
+
         const errorStatus = config.errorStatus || 400;
 
         return (req, res, next) => {
@@ -38,19 +59,17 @@ module.exports = (config={}) => {
             
             if (!req.body) return next();
             
-            if (!allowNeither && !req.body[passwordLocation] && !req.body[passphraseLocation]) return reply(res, errorStatus, haveNeitherMessage);
+            if (!req.body[passwordLocation] && !req.body[passphraseLocation]) return reply(res, errorStatus, haveNeitherMessage);
             if (req.body[passwordLocation] && req.body[passphraseLocation]) return reply(res, errorStatus, haveBothMessage);
             
             if (!req.body[passphraseLocation]) return next();
             
-            const candidate = normalizePassphrase(passphrase);
+            const candidate = normalizePassphrase(req.body[passphraseLocation]);
     
-            if (req._newPasswordCalled && candidate.split(' ').length < minWords)
-                reply(res, errorStatus, shortPassphraseMessage);
-            
-            req.body[passwordLocation] = candidate;
-            
-            next();
+            if (skipLengthCheck || candidate.split(' ').length >= minWords) {
+                req.body[passwordLocation] = candidate;
+                next();
+            } else reply(res, errorStatus, shortPassphraseMessage);
             
         }
     }
@@ -70,7 +89,7 @@ module.exports = (config={}) => {
             
             const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
             
-            if (!re.test(email)) return reply(res, errorStatus, invalidEmailMessage);
+            if (!re.test(req.body[emailLocation])) return reply(res, errorStatus, invalidEmailMessage);
             
             next();
          
@@ -87,8 +106,6 @@ module.exports = (config={}) => {
         
             if (req._passphraseAllowed) throw new Error('validateNewPassword needs to be passed before allowPassphrases');
         
-            req._newPasswordCalled = true;
-
             if (!req.body) return next();
             if (!req.body[passwordLocation]) return next();
         
@@ -105,7 +122,7 @@ module.exports = (config={}) => {
     function validPassword(pass) {
 
         const {minLength,needMixed,needSymbol,needNumber,needAlpha} = pReqs;
-    
+
         const meetsMinLength = (np) => np.length >= minLength;
         const hasMixed = (np) => (np !== np.toUpperCase() && np !== np.toLowerCase());
         const hasSymbol = (np) => !!Array.from(np).find((c)=>{return (c.toUpperCase()===c.toLowerCase() && !(Number(c)>0) && (c !== '0'))});
@@ -154,7 +171,6 @@ function normalizePassphrase(input) {
     const a = 'abcdefghijklmnopqrstuvwxyz 1234567890';
     for (let n=0; n<i.length; n++) {
         if (a.includes(i[n])) o += i[n];
-        else o += ' ';
     }
     
     // clean up after removing some characters
@@ -171,6 +187,7 @@ function normalizePassphrase(input) {
 
 // send a string or JSON payload:
 function reply(res, status, payload) {
-    if (typeof payload === 'object') res.status(status).json(payload);
-    else res.status(status).send(payload);
+    res.status(status);
+    if (typeof payload === 'object') res.json(payload);
+    else res.send(payload);
 }

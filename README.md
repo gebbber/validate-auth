@@ -15,7 +15,8 @@ const ValidateAuth = require('validate-auth');
 const {
     validateEmail,
     validateNewPassword,
-    allowPassphrases,
+    allowNewPassphrases,
+    allowExistingPassphrases,
     sendPasswordRequirements
 } = ValidateAuth(config);
 
@@ -26,10 +27,10 @@ cosnt app = express();
 app.get('/password-requirements', sendPasswordRequirements);
 
 // Validate email and password or passphrase, then allow sign-up
-app.post('/sign-up', validateEmail(), validateNewPassword(), allowPassphrases(), signUp);
+app.post('/sign-up', validateEmail(), validateNewPassword(), allowNewPassphrases(), signUp);
 
 // Validate email and allow passphrase, then allow 
-app.post('/log-in',  validateEmail(), allowPassphrases(), logIn);
+app.post('/log-in',  validateEmail(), allowExistingPassphrases(), logIn);
 ```
 
 # Main Module's `config` Object:
@@ -108,8 +109,8 @@ app.post('/sign-up', validateNewPassword(config), signUp);
 
 **Important Caveats:**
  - **Validate new passwords only.** Do not validate passwords for login, or the user may not be able to log in if their existing password does not meet the current requirements&mdash;hence `New` in the name of the function.
- - **When validating passwords and also allowing passphrases, `validateNewPassword` needs to be passed before `allowPassphrases`**. Passing `validateNewPassword` as middleware *after* `allowPassphrases` will throw an error.
-   - **Why?** `validateNewPassword` works on the `req.body.password` object, expecting it to be an actual password. `allowPassphrases` tests whether there is a `req.body.password` or a `req.body.passphrase`, and if an adequate passphrase is provided, normalizes it (to lower case, removing duplicate words), and **sets** `req.body.password`. Such a password is a long list of words, and is not subject to the password rules, but using `validateNewPassword` *after* `allowPassphrases` would check it to password requirements, and often reject it. An error is intentionally thrown to avoid this setup.
+ - **When validating passwords and also allowing passphrases, `validateNewPassword` needs to be passed before the `allownewPassphrases` or `allowExistingPassphrases` function**. Passing `validateNewPassword` as middleware *after* `allow***Passphrases` will throw an error.
+   - **Why?** `validateNewPassword` works on the `req.body.password` object, expecting it to be an actual password. `allow***Passphrases` tests whether there is a `req.body.password` or a `req.body.passphrase`, and if an adequate passphrase is provided, normalizes it (to lower case, removing duplicate words), and **sets** `req.body.password`. Such a password is a long list of words, and is not subject to the password rules, but using `validateNewPassword` *after* `allow***Passphrases` would check it to password requirements, and often reject it. An error is intentionally thrown to avoid this setup.
 
    The `config` object has the following defaults:
 ```javascript
@@ -121,19 +122,26 @@ const config = {
  - `invalidPasswordMessage` is sent to the client
  - errorStatus is the response status (`400` is 'Bad Request')
 
-## `allowPassphrases([config])`
+## `allowNewPassphrases([config])` and `allowExistingPassphrases([config])`
 
 Normalizes a passphrase, and sets `req.body.password` to the normalized passphrase. Your application can proceed using only `req.body.password` and not worry about whether the user had specified a `req.body.password` or `req.body.passphrase`.
-- `allowPassphrases` must be **called as a function**, which returns the middleware:
+
+`allowNew...` vs. `allowExisting...`: Use `allowNewPassphrases` when setting a new passphrase, as it enforces the minimum length requirements. Use `allowExistingPassphrases` when verifying a passphrase, as it does not enforce minimum length requirements, in case they've changed.
+- Otherwise, allowing a user to set a 5-word passphrase and then increasing the minimum length policy to 8 words would prevent them from verifying their 5-word passphrase and logging in.
+
+- `allowNewPassphrases` and `allowExistingPassphrases` must be **called as a function**, which returns the middleware:
 
 ```javascript
 // default config:
-app.post('/sign-up', validateNewPassword(), allowPassphrases(), signUp);
+app.post('/sign-up', validateNewPassword(), allowNewPassphrases(), signUp);
+app.post('/log-in', validateNewPassword(), allowExistingPassphrases(), logIn);
+
 // or custom config:
-app.post('/sign-up', validateNewPassword(), allowPassphrases(config), signUp);
+app.post('/sign-up', validateNewPassword(), allowNewPassphrases(config), signUp);
+app.post('/log-in', validateNewPassword(), allowExistingPassphrases(config), logIn);
 ```
 
-If used along with `validateNewPassword`, it must be passed **afterwards**.  See explanation above under `validateNewPassword`.
+When setting a passphrase, `validateNewPassword` must be passed in before the `allowNewPassphrases` or `allowExistingPassphrases`. See explanation above under `validateNewPassword`.
 
 Transformations of the passphrase are not configurable, as they must be the same in order for the user to log in again with the same passphrase. They include the following:
  - Passphrase is transformed to all lower case, so user doesn't need to remember capitalization
@@ -147,7 +155,7 @@ The resulting passphrase is only used if it has the minimum number of words set 
 
 The resulting passphrase is placed into `req.body.password` (or the alternative path configured in the main module `config` object), so that your application can not worry about whether a password or passphrase was used, and just refer to `req.body.password`.
 
-The `allowPassphrases(config)` `config` object has the following defaults:
+The `allowNewPassphrases` and `allowExistingPassphrases` `config` objects are identical and have the following defaults:
 ```javascript
 const config = {
         
