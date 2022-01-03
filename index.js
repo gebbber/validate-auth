@@ -19,7 +19,7 @@ module.exports = (config={}) => {
         // middleware:
         allowNewPassphrase,
         allowExistingPassphrase,
-        sendPasswordRequirements: (req, res) =>{res.json(pReqs);},
+        sendPasswordRequirements: (req, res) =>{res.json({...pReqs, minPassphraseWords: minWords});},
         validateEmail,
         validateNewPassword,
         validPassword,

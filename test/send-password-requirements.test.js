@@ -17,7 +17,7 @@ describe('sendPasswordRequirements(req, res)', ()=>{
         const sendPR = ValidateAuth({}).sendPasswordRequirements;
         sendPR({}, {
             json: (o) => {
-                expect(o).to.have.all.keys('minLength', 'needMixed', 'needSymbol', 'needNumber', 'needAlpha');
+                expect(o).to.have.all.keys('minLength', 'needMixed', 'needSymbol', 'needNumber', 'needAlpha', 'minPassphraseWords');
                 done();
             }
         });
